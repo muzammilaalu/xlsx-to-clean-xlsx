@@ -22,13 +22,14 @@ function formatDate(value) {
 
   // String date
   if (typeof value === "string") {
-    const parsed = new Date(value);
+    // Already DD/MM/YYYY format
+    if (/^\d{2}\/\d{2}\/\d{4}$/.test(value)) return value;
 
+    const parsed = new Date(value);
     if (!isNaN(parsed)) {
       const day = String(parsed.getDate()).padStart(2, "0");
       const month = String(parsed.getMonth() + 1).padStart(2, "0");
       const year = parsed.getFullYear();
-
       return `${day}/${month}/${year}`;
     }
   }
@@ -46,10 +47,10 @@ export const convertExcel = (req, res) => {
 
     const workbook = XLSX.read(file.data);
 
-    /* 🔥 RAW TRUE → real values (important for date fix) */
+    /* 🔥 raw: false → dates as strings, dateNF → DD/MM/YYYY format */
     const sheet = XLSX.utils.sheet_to_json(
       workbook.Sheets[workbook.SheetNames[0]],
-      { raw: true }
+      { raw: false, dateNF: "dd/mm/yyyy" }
     );
 
     let finalRows = [];
@@ -62,7 +63,7 @@ export const convertExcel = (req, res) => {
         let value = row[key];
         const lowerKey = key.toLowerCase();
 
-        /* 🔥 ONLY DocumentDate FIX */
+        /* 🔥 DocumentDate format fix */
         if (lowerKey === "documentdate") {
           value = formatDate(value);
         }
@@ -101,9 +102,9 @@ export const convertExcel = (req, res) => {
     });
 
     /* ---------------------------------------------------
-       JSON → Excel (NO CORRUPTION)
+       JSON → Excel (cellDates: false → date wapas number na bane)
     ---------------------------------------------------- */
-    const newSheet = XLSX.utils.json_to_sheet(finalRows);
+    const newSheet = XLSX.utils.json_to_sheet(finalRows, { cellDates: false });
     const newBook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(newBook, newSheet, "Cleaned");
 
@@ -113,7 +114,7 @@ export const convertExcel = (req, res) => {
     });
 
     /* ---------------------------------------------------
-       HEADERS (IMPORTANT)
+       HEADERS — encodeURIComponent se corrupt file fix
     ---------------------------------------------------- */
     let originalName = file.name || "uploaded-file.xlsx";
 
@@ -128,9 +129,10 @@ export const convertExcel = (req, res) => {
       "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     );
 
+    /* 🔥 FIX — filename* UTF-8 encoding, spaces/brackets safe */
     res.setHeader(
       "Content-Disposition",
-      `attachment; filename="${outputName}"`
+      `attachment; filename*=UTF-8''${encodeURIComponent(outputName)}`
     );
 
     res.send(buffer);
