@@ -1,6 +1,23 @@
 import XLSX from "xlsx";
 import { parseItems } from "../utils/parseItems.js";
 
+/* --------------------------------------------------
+   DATE FORMAT FUNCTION (DD/MM/YYYY)
+-------------------------------------------------- */
+function formatDate(value) {
+  if (!value) return value;
+
+  const date = new Date(value);
+
+  if (isNaN(date)) return value;
+
+  const day = String(date.getDate()).padStart(2, "0");
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const year = date.getFullYear();
+
+  return `${day}/${month}/${year}`;
+}
+
 export const convertExcel = (req, res) => {
   try {
     if (!req.files || !req.files.file) {
@@ -10,8 +27,13 @@ export const convertExcel = (req, res) => {
     const file = req.files.file;
 
     const workbook = XLSX.read(file.data);
+
+    /* 🔥 IMPORTANT FIX (DATE ISSUE SOLVED) */
     const sheet = XLSX.utils.sheet_to_json(
-      workbook.Sheets[workbook.SheetNames[0]]
+      workbook.Sheets[workbook.SheetNames[0]],
+      {
+        raw: false, // 👈 THIS FIXES DATE FORMAT
+      }
     );
 
     let finalRows = [];
@@ -21,9 +43,15 @@ export const convertExcel = (req, res) => {
       let items = [];
 
       Object.keys(row).forEach((key) => {
-        const value = row[key];
+        let value = row[key];
         const lowerKey = key.toLowerCase();
 
+        /* 🔥 AUTO DATE FORMAT FIX */
+        if (lowerKey.includes("date")) {
+          value = formatDate(value);
+        }
+
+        /* ITEMS PARSING */
         if (lowerKey === "items") {
           if (value && String(value).includes("code,description")) {
             items = parseItems(value);
@@ -33,6 +61,7 @@ export const convertExcel = (req, res) => {
           return;
         }
 
+        /* KEEP RAW STRING (NO AUTO SPLIT) */
         if (
           lowerKey !== "items" &&
           typeof value === "string" &&
@@ -55,6 +84,9 @@ export const convertExcel = (req, res) => {
       }
     });
 
+    /* ---------------------------------------------------
+       Convert JSON → Excel
+    ---------------------------------------------------- */
     const newSheet = XLSX.utils.json_to_sheet(finalRows);
     const newBook = XLSX.utils.book_new();
 
@@ -65,6 +97,9 @@ export const convertExcel = (req, res) => {
       bookType: "xlsx",
     });
 
+    /* ---------------------------------------------------
+       Dynamic File Name
+    ---------------------------------------------------- */
     let originalName = file.name || "uploaded-file.xlsx";
 
     const parts = originalName.split(".");
@@ -79,6 +114,7 @@ export const convertExcel = (req, res) => {
     );
 
     res.send(buffer);
+
   } catch (err) {
     console.error(err);
     res.status(500).send("Server Error");
