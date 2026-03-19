@@ -171,56 +171,62 @@ function App() {
   };
 
   const handleConvert = async () => {
-    if (!file) {
-      alert('Please upload an Excel file');
-      return;
-    }
+  if (!file) {
+    alert('Please upload an Excel file');
+    return;
+  }
 
-    try {
-      setIsProcessing(true);
-      setCurrentStep(2);
+  try {
+    setIsProcessing(true);
+    setCurrentStep(2);
 
-      const form = new FormData();
-      form.append('file', file);
+    const form = new FormData();
+    form.append('file', file);
 
-      await new Promise(resolve => setTimeout(resolve, 800));
-      setCurrentStep(3);
+    await new Promise(resolve => setTimeout(resolve, 800));
+    setCurrentStep(3);
 
-      const res = await axios.post(
-        'https://xlsx-to-clean-xlsx.onrender.com/api/convert-excel',
-        form,
-        { responseType: 'blob' }
-      );
+    const res = await axios.post(
+      'https://xlsx-to-clean-xlsx.onrender.com/api/convert-excel',
+      form,
+      { responseType: 'blob' }
+    );
 
-      // Create blob
-      const blob = new Blob([res.data]);
+    // 🔥 FIX 1 — type diya blob ko
+    const blob = new Blob([res.data], {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    });
 
-      // 🔥 Extract filename from backend
-      const contentDisposition = res.headers["content-disposition"];
-      let dynamicName = `${file.name.split('.')[0]}-convert.xlsx`;
+    // 🔥 FIX 2 — filename* UTF-8 bhi handle karo
+    const contentDisposition = res.headers["content-disposition"];
+    let dynamicName = `${file.name.split('.')[0]}-convert.xlsx`;
 
-      if (contentDisposition) {
+    if (contentDisposition) {
+      const utf8Match = contentDisposition.match(/filename\*=UTF-8''(.+)/i);
+      if (utf8Match && utf8Match[1]) {
+        dynamicName = decodeURIComponent(utf8Match[1]);
+      } else {
         const match = contentDisposition.match(/filename="?(.+?)"?$/);
         if (match && match[1]) {
           dynamicName = match[1];
         }
       }
-
-      // Store blob + name
-      setDownloadBlob({ blob, fileName: dynamicName });
-
-      await new Promise(resolve => setTimeout(resolve, 500));
-      setCurrentStep(4);
-      setIsComplete(true);
-      setIsProcessing(false);
-
-    } catch (err) {
-      console.error(err);
-      alert('Conversion failed! Please try again or check backend status.');
-      setIsProcessing(false);
-      setCurrentStep(1);
     }
-  };
+
+    setDownloadBlob({ blob, fileName: dynamicName });
+
+    await new Promise(resolve => setTimeout(resolve, 500));
+    setCurrentStep(4);
+    setIsComplete(true);
+    setIsProcessing(false);
+
+  } catch (err) {
+    console.error(err);
+    alert('Conversion failed! Please try again or check backend status.');
+    setIsProcessing(false);
+    setCurrentStep(1);
+  }
+};
 
   const handleDownload = () => {
     if (!downloadBlob) return;
