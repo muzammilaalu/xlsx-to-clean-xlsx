@@ -2,20 +2,38 @@ import XLSX from "xlsx";
 import { parseItems } from "../utils/parseItems.js";
 
 /* --------------------------------------------------
-   DATE FORMAT FUNCTION (DD/MM/YYYY)
+   🔥 FORMAT ONLY DocumentDate → DD/MM/YYYY
 -------------------------------------------------- */
 function formatDate(value) {
   if (!value) return value;
 
-  const date = new Date(value);
+  // Excel serial number (number format)
+  if (typeof value === "number") {
+    const utc_days = Math.floor(value - 25569);
+    const utc_value = utc_days * 86400;
+    const date = new Date(utc_value * 1000);
 
-  if (isNaN(date)) return value;
+    const day = String(date.getDate()).padStart(2, "0");
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const year = date.getFullYear();
 
-  const day = String(date.getDate()).padStart(2, "0");
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const year = date.getFullYear();
+    return `${day}/${month}/${year}`;
+  }
 
-  return `${day}/${month}/${year}`;
+  // String date
+  if (typeof value === "string") {
+    const parsed = new Date(value);
+
+    if (!isNaN(parsed)) {
+      const day = String(parsed.getDate()).padStart(2, "0");
+      const month = String(parsed.getMonth() + 1).padStart(2, "0");
+      const year = parsed.getFullYear();
+
+      return `${day}/${month}/${year}`;
+    }
+  }
+
+  return value;
 }
 
 export const convertExcel = (req, res) => {
@@ -28,12 +46,10 @@ export const convertExcel = (req, res) => {
 
     const workbook = XLSX.read(file.data);
 
-    /* 🔥 IMPORTANT FIX (DATE ISSUE SOLVED) */
+    /* 🔥 RAW TRUE → real values (important for date fix) */
     const sheet = XLSX.utils.sheet_to_json(
       workbook.Sheets[workbook.SheetNames[0]],
-      {
-        raw: false, // 👈 THIS FIXES DATE FORMAT
-      }
+      { raw: true }
     );
 
     let finalRows = [];
@@ -46,8 +62,8 @@ export const convertExcel = (req, res) => {
         let value = row[key];
         const lowerKey = key.toLowerCase();
 
-        /* 🔥 AUTO DATE FORMAT FIX */
-        if (lowerKey.includes("date")) {
+        /* 🔥 ONLY DocumentDate FIX */
+        if (lowerKey === "documentdate") {
           value = formatDate(value);
         }
 
@@ -61,7 +77,7 @@ export const convertExcel = (req, res) => {
           return;
         }
 
-        /* KEEP RAW STRING (NO AUTO SPLIT) */
+        /* KEEP RAW STRINGS */
         if (
           lowerKey !== "items" &&
           typeof value === "string" &&
@@ -85,11 +101,10 @@ export const convertExcel = (req, res) => {
     });
 
     /* ---------------------------------------------------
-       Convert JSON → Excel
+       JSON → Excel (NO CORRUPTION)
     ---------------------------------------------------- */
     const newSheet = XLSX.utils.json_to_sheet(finalRows);
     const newBook = XLSX.utils.book_new();
-
     XLSX.utils.book_append_sheet(newBook, newSheet, "Cleaned");
 
     const buffer = XLSX.write(newBook, {
@@ -98,7 +113,7 @@ export const convertExcel = (req, res) => {
     });
 
     /* ---------------------------------------------------
-       Dynamic File Name
+       HEADERS (IMPORTANT)
     ---------------------------------------------------- */
     let originalName = file.name || "uploaded-file.xlsx";
 
@@ -107,6 +122,11 @@ export const convertExcel = (req, res) => {
     const baseName = parts.join(".") || "converted-file";
 
     const outputName = `${baseName}-convert.${ext}`;
+
+    res.setHeader(
+      "Content-Type",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    );
 
     res.setHeader(
       "Content-Disposition",
