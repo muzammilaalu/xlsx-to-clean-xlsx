@@ -445,6 +445,9 @@ app.use(cors());
 app.use(express.json());
 app.use(fileUpload());
 
+app.use("/", (req, res) => {
+  res.send("welcome to clean excel API's 1.0")
+})
 // Routes
 app.use("/api", excelRoutes);
 
