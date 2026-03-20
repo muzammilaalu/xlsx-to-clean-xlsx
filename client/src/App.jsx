@@ -139,6 +139,8 @@
 //   );
 // }
 
+
+
 import { useState } from 'react';
 import axios from 'axios';
 import { Loader2, Sparkles } from 'lucide-react';
@@ -152,8 +154,6 @@ function App() {
   const [currentStep, setCurrentStep] = useState(1);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isComplete, setIsComplete] = useState(false);
-
-  // Store blob + filename dynamically
   const [downloadBlob, setDownloadBlob] = useState(null);
 
   const handleFileSelect = (selectedFile) => {
@@ -171,75 +171,73 @@ function App() {
   };
 
   const handleConvert = async () => {
-  if (!file) {
-    alert('Please upload an Excel file');
-    return;
-  }
-
-  try {
-    setIsProcessing(true);
-    setCurrentStep(2);
-
-    const form = new FormData();
-    form.append('file', file);
-
-    await new Promise(resolve => setTimeout(resolve, 800));
-    setCurrentStep(3);
-
-    const res = await axios.post(
-      'https://xlsx-to-clean-xlsx.onrender.com/api/convert-excel',
-      form,
-      { responseType: 'blob' }
-    );
-
-    // 🔥 FIX 1 — type diya blob ko
-    const blob = new Blob([res.data], {
-      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    });
-
-    // 🔥 FIX 2 — filename* UTF-8 bhi handle karo
-    const contentDisposition = res.headers["content-disposition"];
-    let dynamicName = `${file.name.split('.')[0]}-convert.xlsx`;
-
-    if (contentDisposition) {
-      const utf8Match = contentDisposition.match(/filename\*=UTF-8''(.+)/i);
-      if (utf8Match && utf8Match[1]) {
-        dynamicName = decodeURIComponent(utf8Match[1]);
-      } else {
-        const match = contentDisposition.match(/filename="?(.+?)"?$/);
-        if (match && match[1]) {
-          dynamicName = match[1];
-        }
-      }
+    if (!file) {
+      alert('Please upload an Excel file');
+      return;
     }
 
-    setDownloadBlob({ blob, fileName: dynamicName });
+    try {
+      setIsProcessing(true);
+      setCurrentStep(2);
 
-    await new Promise(resolve => setTimeout(resolve, 500));
-    setCurrentStep(4);
-    setIsComplete(true);
-    setIsProcessing(false);
+      const form = new FormData();
+      form.append('file', file);
 
-  } catch (err) {
-    console.error(err);
-    alert('Conversion failed! Please try again or check backend status.');
-    setIsProcessing(false);
-    setCurrentStep(1);
-  }
-};
+      await new Promise(resolve => setTimeout(resolve, 800));
+      setCurrentStep(3);
+
+      const res = await axios.post(
+        'https://xlsx-to-clean-xlsx.onrender.com/api/convert-excel',
+        form,
+        { responseType: 'arraybuffer' } // ✅ FIX — blob ki jagah arraybuffer
+      );
+
+      // ✅ FIX — arraybuffer se blob banao
+      const blob = new Blob([res.data], {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      });
+
+      // filename extract karo
+      const contentDisposition = res.headers["content-disposition"];
+      let dynamicName = `${file.name.split('.')[0]}-convert.xlsx`;
+
+      if (contentDisposition) {
+        const utf8Match = contentDisposition.match(/filename\*=UTF-8''(.+)/i);
+        if (utf8Match && utf8Match[1]) {
+          dynamicName = decodeURIComponent(utf8Match[1]);
+        } else {
+          const match = contentDisposition.match(/filename="?(.+?)"?$/);
+          if (match && match[1]) {
+            dynamicName = match[1];
+          }
+        }
+      }
+
+      setDownloadBlob({ blob, fileName: dynamicName });
+
+      await new Promise(resolve => setTimeout(resolve, 500));
+      setCurrentStep(4);
+      setIsComplete(true);
+      setIsProcessing(false);
+
+    } catch (err) {
+      console.error(err);
+      alert('Conversion failed! Please try again or check backend status.');
+      setIsProcessing(false);
+      setCurrentStep(1);
+    }
+  };
 
   const handleDownload = () => {
     if (!downloadBlob) return;
 
     const url = window.URL.createObjectURL(downloadBlob.blob);
     const a = document.createElement('a');
-
     a.href = url;
-    a.download = downloadBlob.fileName; // 🔥 Dynamic filename
+    a.download = downloadBlob.fileName;
     document.body.appendChild(a);
     a.click();
     a.remove();
-
     window.URL.revokeObjectURL(url);
   };
 
@@ -255,7 +253,6 @@ function App() {
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
       <div className="container mx-auto px-4 py-8 max-w-6xl">
 
-        {/* Header */}
         <header className="text-center mb-12 pt-8">
           <div className="flex items-center justify-center gap-3 mb-4">
             <div className="p-3 bg-blue-600 rounded-xl">
@@ -271,7 +268,6 @@ function App() {
           </p>
         </header>
 
-        {/* Main Box */}
         <div className="bg-white rounded-3xl shadow-xl p-8 md:p-12 mb-8">
           <StepIndicator currentStep={currentStep} />
 
@@ -306,7 +302,6 @@ function App() {
                         <div className="w-8 h-8 bg-blue-100 rounded-full" />
                       </div>
                     </div>
-
                     <div className="text-center">
                       <p className="text-lg font-semibold text-gray-900 mb-1">
                         {currentStep === 2 && 'Processing your file...'}
@@ -327,7 +322,6 @@ function App() {
 
         <HowItWorks />
 
-        {/* Footer */}
         <footer className="text-center mt-12 pb-8">
           <div className="inline-flex items-center gap-2 text-gray-600 bg-white px-6 py-3 rounded-full shadow-sm">
             <Sparkles className="w-4 h-4" />

@@ -432,7 +432,6 @@
 
 
 
-
 import express from "express";
 import cors from "cors";
 import fileUpload from "express-fileupload";
@@ -445,11 +444,13 @@ app.use(cors());
 app.use(express.json());
 app.use(fileUpload());
 
-app.use("/", (req, res) => {
-  res.send("welcome to clean excel API's 1.0")
-})
-// Routes
+// ✅ Routes pehle — "/" wala route baad mein
 app.use("/api", excelRoutes);
+
+// ✅ Health check
+app.get("/", (req, res) => {
+  res.send("welcome to clean excel API's 1.0");
+});
 
 const PORT = process.env.PORT || 5000;
 

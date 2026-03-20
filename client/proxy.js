@@ -11,12 +11,20 @@ const app = express();
 // Serve Vite build (dist folder)
 app.use("/", express.static(path.join(__dirname, "dist")));
 
-// Backend API reverse proxy
+// ✅ Backend API reverse proxy — binary fix
 app.use(
-  "/convert-excel",
+  "/api",
   createProxyMiddleware({
     target: "http://localhost:5000",
     changeOrigin: true,
+    selfHandleResponse: false,
+    on: {
+      proxyRes: (proxyRes) => {
+        // ✅ Binary data ke liye encoding remove karo
+        delete proxyRes.headers["content-encoding"];
+        delete proxyRes.headers["transfer-encoding"];
+      },
+    },
   })
 );
 
